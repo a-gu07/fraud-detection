@@ -29,16 +29,31 @@ The scorer updates online via continuous-time exponential decay (`w = 1 - exp(-�
 and shrinks its covariance estimate toward the fixed global covariance after long 
 gaps to avoid numerical instability.
 
-Global and adaptive scores are currently both computed and exposed side by side
-for every streaming transaction; deciding how to combine them into one final
-fraud-likelihood decision is deferred.
+**Layer 3 — Combining scores and evaluation.** The global and adaptive scores are
+combined per transaction by taking their maximum: a transaction is treated as
+anomalous if *either* baseline flags it, since the adaptive layer exists
+specifically to catch drift-related anomalies the global baseline misses, and
+vice versa. The combined score is evaluated by sweeping every possible decision
+threshold against the true labels and computing the resulting false-positive
+rate, recall, and precision at each cutoff. This gives ROC-AUC ≈ 0.959 and
+PR-AUC ≈ 0.564 (cross-checked against scikit-learn's `roc_auc_score` and
+`average_precision_score`, used here purely as an external validation
+reference, not as part of the detector itself). A single operating threshold is
+then chosen by fixing a tolerance for false positives. At a 0.5% false-positive-rate tolerance,
+the detector achieves 81.8% recall and 22.1% precision. That precision figure is low but also 
+reasonable. With fraud representing  ~0.17% of transactions, false positives are drawn from a 
+pool over 500 times larger than the pool of actual fraud, so even a low false-positive *rate* 
+translates into a large false-positive *count* relative to the number of true positives found. 
 
 **Known limitation(s):** The dataset, being PCA-anonymized, does not fully reflect real-world 
 transactions. Our methods have relied on the fact that the covariance matrix is invertible.
 A real-world system would need some way to guarantee that the covariance matrix of their features is
 invertible. Additionally, the fraud-likelihood decision based on the outputted scores relies on knowing 
 which transactions are fraudulent and which aren't (this is baked into the update rule), which is also 
-not something real-world data provides. 
+not something real-world data provides. The reported evaluation metrics were also computed, and the
+detection threshold selected, using the same streaming set rather than a separate held-out split
+reserved purely for threshold tuning, so the recall/precision figures above are likely somewhat
+optimistic relative to how the detector would perform on genuinely unseen data.
 
 ## Repo layout
 

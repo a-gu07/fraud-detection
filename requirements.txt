@@ -60,6 +60,7 @@ rich==15.0.0
 rich-toolkit==0.20.1
 rignore==0.7.6
 scipy==1.18.0
+scikit-learn==1.9.0
 sentry-sdk==2.64.0
 shellingham==1.5.4
 six==1.17.0
