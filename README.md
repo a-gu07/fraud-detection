@@ -55,13 +55,36 @@ detection threshold selected, using the same streaming set rather than a separat
 reserved purely for threshold tuning, so the recall/precision figures above are likely somewhat
 optimistic relative to how the detector would perform on genuinely unseen data.
 
+## Streaming replay
+
+For future use, the streaming set is replayed one transaction at a
+time, in chronological order, against both the global and adaptive baselines
+described above. Each transaction is scored with the same combined (max) rule as
+above and inserted to a SQLite database. A small delay between rows simulates 
+transactions arriving live rather than all at once. Only the combined score is stored,
+not the two component scores separately, and no fixed decision threshold is baked in yet. 
+Each stored row also carries the actual wall-clock time it was processed, since the
+dataset's own `Time` field only encodes elapsed seconds within the original two-day
+capture window and isn't a meaningful real timestamp on its own.
+
+Each run of the replay script clears and recreates the underlying table, so it can
+be safely re-run from a clean slate at any time.
+
+```
+python -m scripts.sim
+```
+
+(run from the repo root, so that the database file and dataset paths resolve
+correctly).
+
 ## Repo layout
 
 ```
-app/            core scoring logic (MahalanobisScorer)
+app/            core scoring logic (MahalanobisScorer) and the SQLAlchemy DB model
+scripts/        streaming replay script (scores + persists transactions live)
 notebooks/      exploratory analysis + validation notebooks
 tests/          pytest suite for app/scoring.py
-data/           dataset splits (gitignored)
+data/           dataset splits and the streaming database (gitignored)
 ```
 
 ## Running tests
