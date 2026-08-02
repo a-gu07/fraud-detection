@@ -77,10 +77,51 @@ python -m scripts.sim
 (run from the repo root, so that the database file and dataset paths resolve
 correctly).
 
+## API and dashboard
+
+A FastAPI service exposes the scored transactions over HTTP, and a Streamlit
+dashboard uses that API to provide a live view of the detector in action.
+The database is shared between the replay script and the API (SQLite in WAL
+mode, so reads and writes can happen concurrently without locking each other
+out), and the dashboard never touches the database directly, it only talks to
+the API, the same way any external client would.
+
+The API exposes five endpoints: a health check that verifies both the service
+and the database are reachable; a listing of recent transactions; a
+listing filtered to only transactions at or above a given score threshold; a
+stats endpoint that computes precision, recall, and false-positive rate live
+for whatever threshold is requested, using the true labels already stored
+alongside each score; and an endpoint to submit a single transaction for
+on-demand scoring, useful for demonstrating the live-scoring path independent
+of a full replay run.
+
+The dashboard polls the API on a short interval to stay current, and lets a
+viewer adjust the detection threshold with a slider. The stat cards, the
+highlighted rows in the live transaction table, and the alert-rate chart all
+update immediately to reflect whichever threshold is selected, recomputed from
+the underlying scores and labels. The alert-rate chart accumulates a running history of scores as
+new transactions arrive, so moving the threshold slider reshapes the entire
+chart's history consistently, not just newly-arriving data.
+
+The dashboard is explicitly a simulation: transactions are replayed from the
+same pre-downloaded and labeled dataset described above rather than
+arriving from a real payment system. While the true fraud label for each 
+transaction is known ahead of time, the labels are used only to compute 
+the accuracy metrics shown, never as an input to the scoring itself.
+
+```
+fastapi dev app/main.py
+streamlit run app/dashboard.py
+```
+
+(both run from the repo root; the API needs to be running for the dashboard
+to have anything to display).
+
 ## Repo layout
 
 ```
-app/            core scoring logic (MahalanobisScorer) and the SQLAlchemy DB model
+app/            core scoring logic (MahalanobisScorer), the SQLAlchemy DB model,
+                the FastAPI service (main.py), and the Streamlit dashboard (dashboard.py)
 scripts/        streaming replay script (scores + persists transactions live)
 notebooks/      exploratory analysis + validation notebooks
 tests/          pytest suite for app/scoring.py
@@ -93,4 +134,3 @@ data/           dataset splits and the streaming database (gitignored)
 source .venv/bin/activate
 pytest
 ```
-
