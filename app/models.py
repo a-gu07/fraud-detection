@@ -10,12 +10,12 @@ class Base(DeclarativeBase):
 class ScoredTransactions(Base):
     __tablename__ = "scored_transactions"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    Time: Mapped[float] = mapped_column()
-    Amount: Mapped[float] = mapped_column()
-    Class: Mapped[int] = mapped_column()
-    Score: Mapped[float] = mapped_column()
-    processed_at: Mapped[datetime] = mapped_column()
+    id: Mapped[int] = mapped_column('id', primary_key=True)
+    Time: Mapped[float] = mapped_column('time')
+    Amount: Mapped[float] = mapped_column('amount')
+    Class: Mapped[int] = mapped_column('class')
+    Score: Mapped[float] = mapped_column('score')
+    processed_at: Mapped[datetime] = mapped_column('processed_at')
 
 
 def reset():

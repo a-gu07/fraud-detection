@@ -74,7 +74,7 @@ def highlight_alerts(row):
 styled = transactions.style.apply(highlight_alerts, axis=1)
 st.dataframe(styled)
 
-if transactions['id'].max() < st.session_state['last_id']:
+if transactions.index.max() < st.session_state['last_id']:
     st.session_state['last_id'] = 0
     st.session_state['start_time'] = None
     st.session_state['bucket_scores'] = {}

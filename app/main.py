@@ -105,10 +105,18 @@ def list_transactions(
     db: Session = Depends(get_db),
 ):  
     if after_id > 0:
-        stmt = text("SELECT * FROM scored_transactions WHERE id > :after_id ORDER BY id ASC")
+        stmt = text(
+            "SELECT id, time AS \"Time\", amount AS \"Amount\", class AS \"Class\", "
+            "score AS \"Score\", processed_at "
+            "FROM scored_transactions WHERE id > :after_id ORDER BY id ASC"
+        )
         result = db.execute(stmt, {'after_id': after_id})
         return result.all()
-    stmt = text("SELECT * FROM scored_transactions ORDER BY processed_at DESC LIMIT :limit OFFSET :offset")
+    stmt = text(
+        "SELECT id, time AS \"Time\", amount AS \"Amount\", class AS \"Class\", "
+        "score AS \"Score\", processed_at "
+        "FROM scored_transactions ORDER BY processed_at DESC LIMIT :limit OFFSET :offset"
+    )
     result = db.execute(stmt, {'limit': limit, 'offset': offset})
     return result.all()
 
@@ -119,7 +127,12 @@ def list_alerts(
     score: float = 19.08, # score calculated from notebook 5
     db: Session = Depends(get_db),
 ):
-    stmt = text("SELECT * FROM scored_transactions WHERE SCORE >= :score ORDER BY processed_at DESC LIMIT :limit OFFSET :offset")
+    stmt = text(
+        "SELECT id, time AS \"Time\", amount AS \"Amount\", class AS \"Class\", "
+        "score AS \"Score\", processed_at "
+        "FROM scored_transactions WHERE score >= :score "
+        "ORDER BY processed_at DESC LIMIT :limit OFFSET :offset"
+    )
     result = db.execute(stmt, {'limit': limit, 'offset': offset, 'score': score})
     return result.all()
 
@@ -128,16 +141,16 @@ def list_stats(
     threshold: float = 19.08, # score calculated from notebook 5
     db: Session = Depends(get_db),
 ):
-    stmt = ("SELECT COUNT(*) AS Total, "
-    "SUM(CASE WHEN Score >= :threshold THEN 1 ELSE 0 END) as Alert, "
+    stmt = ("SELECT COUNT(*) AS total, "
+    "SUM(CASE WHEN Score >= :threshold THEN 1 ELSE 0 END) as alert, "
     "SUM(CASE WHEN Score >= :threshold AND Class = 1 THEN 1 ELSE 0 END) as true_positives,"
     "SUM(CASE WHEN Class = 1 THEN 1 ELSE 0 END) as actual_positives,"
     "SUM(CASE WHEN Class = 0 THEN 1 ELSE 0 END) as actual_negatives"
     " FROM scored_transactions"
     )
     result = db.execute(text(stmt), {'threshold': threshold}).one()
-    total = result.Total if result.Total is not None else 0
-    alerts = result.Alert if result.Alert is not None else 0
+    total = result.total if result.total is not None else 0
+    alerts = result.alert if result.alert is not None else 0
     tp = result.true_positives if result.true_positives is not None else 0
     ap = result.actual_positives if result.actual_positives is not None else 0
     an = result.actual_negatives if result.actual_negatives is not None else 0
