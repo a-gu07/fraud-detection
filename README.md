@@ -1,9 +1,7 @@
 # fraud-detection
 
 Real-time fraud detection system that scores transactions for anomalousness using
-hand-implemented statistical methods — no black-box library calls for the core
-scoring logic. Built as a Summer 2027 SWE internship project (target: Capital One,
-Roblox, FAANG-tier).
+hand-implemented statistical methods.
 
 **Status:** In progress.
 
