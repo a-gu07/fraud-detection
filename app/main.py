@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Query
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.models import get_db, ScoredTransactions
@@ -93,14 +93,14 @@ def root_route():
 def health(db: Session = Depends(get_db)):
     try: 
         db.execute(text("SELECT 1"))
-    except Exception:
-        raise HTTPException(status_code=503, detail=f"Error: Database is unreachable")
+    except Exception as e:
+        raise HTTPException(status_code=503, detail="Error: Database is unreachable") from e
     return {"status": "ok", "db": "ok"} 
     
 @app.get("/transactions", response_model=list[Transaction])
 def list_transactions(
-    limit: int = 100,
-    offset: int = 0,
+    limit: int = Query(100, ge=1, le=5000),
+    offset: int = Query(0, ge=0),
     after_id: int | None = None,
     db: Session = Depends(get_db),
 ):  
@@ -108,9 +108,9 @@ def list_transactions(
         stmt = text(
             "SELECT id, time AS \"Time\", amount AS \"Amount\", class AS \"Class\", "
             "score AS \"Score\", processed_at "
-            "FROM scored_transactions WHERE id > :after_id ORDER BY id ASC"
+            "FROM scored_transactions WHERE id > :after_id ORDER BY id ASC LIMIT :limit"
         )
-        result = db.execute(stmt, {'after_id': after_id})
+        result = db.execute(stmt, {'after_id': after_id, 'limit': limit})
         return result.all()
     stmt = text(
         "SELECT id, time AS \"Time\", amount AS \"Amount\", class AS \"Class\", "
@@ -122,8 +122,8 @@ def list_transactions(
 
 @app.get("/alerts", response_model=list[Transaction])
 def list_alerts(
-    limit: int = 100,
-    offset: int = 0,
+    limit: int = Query(100, ge=1, le=5000),
+    offset: int = Query(0, ge=0),
     score: float = 19.08, # score calculated from notebook 5
     db: Session = Depends(get_db),
 ):

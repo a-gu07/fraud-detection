@@ -221,4 +221,3 @@ data/*.csv
 data/*.db
 data/*.db-*
 
-.streamlit/secrets.toml

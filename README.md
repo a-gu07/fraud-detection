@@ -3,6 +3,73 @@
 Real-time fraud detection system that scores transactions for anomalousness using
 hand-implemented statistical methods.
 
+**[▶ Live dashboard](https://fraud-detection-agu.streamlit.app/)** · [API](https://fraud-detection-5awj.onrender.com) · [API docs](https://fraud-detection-5awj.onrender.com/docs)
+
+A stream of credit-card transactions is replayed one at a time against two
+statistical baselines: a fixed global model of what "normal" looks like, and an
+online model that adapts to how normal shifts over the course of a day. Each
+transaction gets an anomaly score; anything scoring above an adjustable threshold
+is flagged. The dashboard shows the scores landing live and recomputes precision,
+recall, and false-positive rate against the true labels as the threshold moves.
+Everything statistical is implemented from scratch.
+
+> **AI Use:** Much of the text (README and markdown cells in notebooks) was written
+> with AI assistance. On the other hand, the code is written by me, and I used AI
+> mainly to debug/double check my work.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    csv["Dataset CSVs<br/>GitHub Release asset"]
+
+    subgraph render["Render"]
+        direction TB
+        worker["Background worker<br/>scripts/sim.py<br/>replays + scores"]
+        db[("Postgres")]
+        api["FastAPI service<br/>app/main.py"]
+        worker -->|writes scored rows| db
+        db -->|reads| api
+    end
+
+    dash["Streamlit dashboard<br/>app/dashboard.py<br/>Streamlit Community Cloud"]
+
+    csv -->|pulled at build time| worker
+    api -->|JSON over HTTP| dash
+```
+
+The system runs as four separate deployed pieces. A background worker replays the
+held-out transaction stream on a continuous loop, scoring each row and writing it
+to Postgres. A FastAPI service is the only thing that reads that database. The
+Streamlit dashboard is a pure HTTP client of the API and never touches the database directly.
+
+Making the replay an always-on worker rather than a thread inside
+the web service keeps the stream running independently of the web service's
+lifecycle and keeps the API stateless. The worker clears and repopulates the table
+on each pass, so the live demo always shows a stream in progress rather than a
+static finished dataset.
+
+## Results
+
+Evaluated on the held-out streaming split (~85K transactions, ~0.17% fraud):
+
+| Metric | Value |
+| --- | --- |
+| ROC-AUC | 0.959 |
+| PR-AUC | 0.564 |
+| Recall @ 0.5% FPR | 81.8% |
+| Precision @ 0.5% FPR | 22.1% |
+| Selected threshold | 19.08 |
+
+The detector catches roughly four in five fraudulent transactions while flagging
+one in every two hundred legitimate ones. Precision is low by design rather than
+by failure: with fraud at ~0.17% of volume, false positives are drawn from a pool
+over 500 times larger than the pool of real fraud, so even a very low false-positive
+*rate* produces a large false-positive *count*.
+
+See [Approach](#approach) below for how the threshold was chosen — including why
+these figures are likely somewhat optimistic, since the threshold was selected on
+the same split the metrics are reported on rather than a separate held-out set.
 
 ## Approach
 
@@ -52,21 +119,51 @@ detection threshold selected, using the same streaming set rather than a separat
 reserved purely for threshold tuning, so the recall/precision figures above are likely somewhat
 optimistic relative to how the detector would perform on genuinely unseen data.
 
+## Setup
+
+```bash
+git clone https://github.com/a-gu07/fraud-detection.git
+cd fraud-detection
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+The two dataset splits are too large to keep in the repository, so they are
+published as assets on the
+[`dataset-v1`](https://github.com/a-gu07/fraud-detection/releases/tag/dataset-v1)
+release. Download them into `data/` before running anything:
+
+```bash
+mkdir -p data
+curl -L -o data/historical.csv \
+  https://github.com/a-gu07/fraud-detection/releases/download/dataset-v1/historical.csv
+curl -L -o data/streaming.csv \
+  https://github.com/a-gu07/fraud-detection/releases/download/dataset-v1/streaming.csv
+```
+
+The `-L` flag: GitHub release assets redirect to a storage backend, and
+without it `curl` saves the redirect page instead of the file.
+
+`historical.csv` (~199K rows) is the baseline split the global scorer is fit on;
+`streaming.csv` (~85K rows) is the held-out split that gets replayed. The deployed
+service pulls these same two files at build time.
+
 ## Streaming replay
 
-For future use, the streaming set is replayed one transaction at a
-time, in chronological order, against both the global and adaptive baselines
+The streaming set is replayed one transaction at a time, 
+in chronological order, against both the global and adaptive baselines
 described above. Each transaction is scored with the same combined (max) rule as
 above and inserted to a database (SQLite locally, or Postgres in production,
 selected via a `DATABASE_URL` environment variable). A small delay between rows simulates 
 transactions arriving live rather than all at once. Only the combined score is stored,
-not the two component scores separately, and no fixed decision threshold is baked in yet. 
+not the two component scores separately, and no fixed decision threshold is baked in. 
 Each stored row also carries the actual wall-clock time it was processed, since the
 dataset's own `Time` field only encodes elapsed seconds within the original two-day
 capture window and isn't a meaningful real timestamp on its own.
 
 Each run of the replay script clears and recreates the underlying table, so it can
-be safely re-run from a clean slate at any time.
+be safely re-run from a clean slate at any time. In the deployed worker this runs on a 
+continuous loop, so the live demo always shows a stream in progress.
 
 ```
 python -m scripts.sim
