@@ -6,6 +6,8 @@ from pydantic import BaseModel
 from datetime import datetime
 from fastapi import HTTPException
 from contextlib import asynccontextmanager
+from fastapi.middleware.cors import CORSMiddleware
+
 
 import numpy as np
 import pandas as pd
@@ -28,7 +30,16 @@ async def lifespan(app: FastAPI):
     adaptive_scorer = MahalanobisScorer.fit_ewma(global_scorer)
     yield
 
+origins = ['*']
+
 app = FastAPI(lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=False,
+    allow_methods=['GET', 'POST'],
+    allow_headers=['*']
+)
 
 class Transaction(BaseModel):
     id: int

@@ -1,3 +1,4 @@
+import os
 from sqlalchemy import create_engine, text
 from datetime import datetime
 from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase, Session, sessionmaker
@@ -21,10 +22,13 @@ def reset():
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
 
-engine = create_engine("sqlite:///data/fraud_detection.db")
+DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///data/fraud_detection.db")
+
+engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
-with engine.connect() as conn:
-    conn.execute(text("PRAGMA journal_mode=WAL"))
+if engine.dialect.name == 'sqlite':
+    with engine.connect() as conn:
+        conn.execute(text('PRAGMA journal_mode=WAL'))
 
 def get_db():
     db = SessionLocal()
