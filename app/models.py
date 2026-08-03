@@ -1,7 +1,7 @@
 import os
 from sqlalchemy import create_engine, text
 from datetime import datetime
-from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase, Session, sessionmaker
+from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase, sessionmaker
 
 class Base(DeclarativeBase):
     pass

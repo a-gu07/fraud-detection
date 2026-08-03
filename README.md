@@ -3,7 +3,6 @@
 Real-time fraud detection system that scores transactions for anomalousness using
 hand-implemented statistical methods.
 
-**Status:** In progress.
 
 ## Approach
 
@@ -58,7 +57,8 @@ optimistic relative to how the detector would perform on genuinely unseen data.
 For future use, the streaming set is replayed one transaction at a
 time, in chronological order, against both the global and adaptive baselines
 described above. Each transaction is scored with the same combined (max) rule as
-above and inserted to a SQLite database. A small delay between rows simulates 
+above and inserted to a database (SQLite locally, or Postgres in production,
+selected via a `DATABASE_URL` environment variable). A small delay between rows simulates 
 transactions arriving live rather than all at once. Only the combined score is stored,
 not the two component scores separately, and no fixed decision threshold is baked in yet. 
 Each stored row also carries the actual wall-clock time it was processed, since the
@@ -79,10 +79,11 @@ correctly).
 
 A FastAPI service exposes the scored transactions over HTTP, and a Streamlit
 dashboard uses that API to provide a live view of the detector in action.
-The database is shared between the replay script and the API (SQLite in WAL
-mode, so reads and writes can happen concurrently without locking each other
-out), and the dashboard never touches the database directly, it only talks to
-the API, the same way any external client would.
+The database is shared between the replay script and the API — SQLite
+locally (in WAL mode, so reads and writes can happen concurrently without
+locking each other out) or Postgres in production, selected the same way via
+`DATABASE_URL` — and the dashboard never touches the database directly, it
+only talks to the API, the same way any external client would.
 
 The API exposes five endpoints: a health check that verifies both the service
 and the database are reachable; a listing of recent transactions; a
