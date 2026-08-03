@@ -24,8 +24,8 @@ def reset():
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///data/fraud_detection.db")
 
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(bind=engine, pool_pre_ping=True, pool_recycle=1800)
+engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=1800)
+SessionLocal = sessionmaker(bind=engine)
 if engine.dialect.name == 'sqlite':
     with engine.connect() as conn:
         conn.execute(text('PRAGMA journal_mode=WAL'))
