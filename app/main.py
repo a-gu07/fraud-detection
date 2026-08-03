@@ -101,10 +101,10 @@ def health(db: Session = Depends(get_db)):
 def list_transactions(
     limit: int = 100,
     offset: int = 0,
-    after_id: int = 0,
+    after_id: int | None = None,
     db: Session = Depends(get_db),
 ):  
-    if after_id > 0:
+    if after_id is not None:
         stmt = text(
             "SELECT id, time AS \"Time\", amount AS \"Amount\", class AS \"Class\", "
             "score AS \"Score\", processed_at "

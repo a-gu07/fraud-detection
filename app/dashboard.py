@@ -8,13 +8,14 @@ st.session_state.setdefault('last_id', 0)
 st.session_state.setdefault('start_time', None)
 st.session_state.setdefault('bucket_scores', {})
 
-API_URL = 'http://127.0.0.1:8000'
+API_URL = st.secrets.get('API_URL', 'http://127.0.0.1:8000')
 
 st.set_page_config(page_title='Fraud Detection Dashboard', layout='wide')
 
 st_autorefresh(interval=2000, key='refresh_timer')
 
 st.title('Fraud Detection — Live Monitor')
+st.badge('Made by Alan Gu :)', color='violet')
 st.info(
     "This is a simulated live feed: transactions are replayed from a "
     "pre-downloaded and labeled dataset (Kaggle ULB credit card fraud "
@@ -24,15 +25,16 @@ st.info(
     "scoring itself."
 )
 try:
-    health_response = httpx.get(f'{API_URL}/health', timeout=2)
+    health_response = httpx.get(f'{API_URL}/health', timeout=65)
     if health_response.status_code == 200:
         st.success("API: Connected")
     else:
         st.error("API: Unreachable")
         st.stop()
-except httpx.ConnectError:
+except httpx.RequestError:
     st.error("API: Unreachable")
     st.stop()
+
 st.caption(
     "Each transaction is scored on how statistically unusual it looks, using both "
     "a global baseline of normal transaction behavior and an EWMA model that shifts "
@@ -51,13 +53,14 @@ st.caption(
     "the selected threshold. Note: the default score of 19.08 "
     "is the threshold chosen to capture most of the available recall while keeping false positives to a fixed, low rate. "
 )
+st.caption('The time displayed is in the UTC zone.')
 col1, col2, col3, col4, col5 = st.columns(5)
 
 col1.metric('Total Processed', stats['total'])
 col2.metric('Alerts', stats['alerts'])
-col3.metric('Precision', f'{stats['precision']:.2%}' if stats['precision'] is not None else '—')
-col4.metric('Recall', f'{stats['recall']:.2%}' if stats['recall'] is not None else '—')
-col5.metric('FPR', f'{stats['fpr']:.2%}' if stats['fpr'] is not None else '—')
+col3.metric('Precision', f"{stats['precision']:.2%}" if stats['precision'] is not None else '—')
+col4.metric('Recall', f"{stats['recall']:.2%}" if stats['recall'] is not None else '—')
+col5.metric('FPR', f"{stats['fpr']:.2%}" if stats['fpr'] is not None else '—')
 
 transactions = httpx.get(f'{API_URL}/transactions')
 transactions = transactions.json()
@@ -88,7 +91,10 @@ if new_transactions:
     if st.session_state['start_time'] is None:
         st.session_state['start_time'] = new_transactions['processed_at'].min()
 
-    for bucket_time, group in new_transactions.groupby(pd.Grouper(key='processed_at', freq='2s'))['Score']:
+    elapsed = (new_transactions['processed_at'] - st.session_state['start_time']).dt.total_seconds()
+    new_transactions['bucket_time'] = st.session_state['start_time'] + pd.to_timedelta((elapsed // 2) * 2, unit='s')
+
+    for bucket_time, group in new_transactions.groupby('bucket_time')['Score']:
         if group.empty:
             continue
         st.session_state['bucket_scores'].setdefault(bucket_time, []).extend(group.tolist())

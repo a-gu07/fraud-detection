@@ -1,11 +1,10 @@
-import sys
 import pandas as pd
 import numpy as np
 from sqlalchemy.orm import Session
 from datetime import datetime
 import time
 
-from app.models import  Base, engine, ScoredTransactions, reset
+from app.models import engine, ScoredTransactions, reset
 from app.scoring import MahalanobisScorer
 
 
