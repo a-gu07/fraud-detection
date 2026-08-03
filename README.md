@@ -5,6 +5,12 @@ hand-implemented statistical methods.
 
 **[▶ Live dashboard](https://fraud-detection-agu.streamlit.app/)** · [API](https://fraud-detection-5awj.onrender.com) · [API docs](https://fraud-detection-5awj.onrender.com/docs)
 
+![Live dashboard demo](assets/demo.gif)
+
+*Transactions scored and landing live. Dragging the threshold recomputes precision,
+recall, and false-positive rate, re-flags the table, and reshapes the alert-rate
+chart's full history — not just newly arriving rows.*
+
 A stream of credit-card transactions is replayed one at a time against two
 statistical baselines: a fixed global model of what "normal" looks like, and an
 online model that adapts to how normal shifts over the course of a day. Each
