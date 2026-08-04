@@ -29,36 +29,40 @@ st_autorefresh(interval=2000, key='refresh_timer')
 st.title('Fraud Detection — Live Monitor')
 st.badge('Made by Alan Gu :)', color='violet')
 st.info(
-    "This is a simulated live feed: transactions are replayed from a "
-    "pre-downloaded and labeled dataset (Kaggle ULB credit card fraud "
-    "dataset). The true fraud label for each transaction is known ahead of time. "
-    "However, the labels are used only to compute the accuracy metrics below, "
-    "never as an input to the "
-    "scoring itself."
+    "Simulated live feed replayed from a labeled dataset. "
+    "A transaction is never scored using its own label. "
 )
 api_get('/health', timeout=65)
 st.success("API: Connected")
 
-st.caption(
-    "Each transaction is scored on how statistically unusual it looks, using both "
-    "a global baseline of normal transaction behavior and an EWMA model that shifts "
-    "its baseline as transactions come in. A higher score means the transaction is "
-    "more likely to be fraudulent. The slider sets the score threshold: transactions "
-    "scoring at or above the score are flagged as alerts. "
-)
+with st.expander("How this works"):
+    st.markdown(
+        "**The data.** This is a simulated live feed: transactions are replayed from a "
+        "pre-downloaded and labeled dataset (Kaggle ULB credit card fraud dataset). The "
+        "true fraud label for each transaction is known ahead of time. A transaction is never scored using its own label. "
+        "The labels are used to compute the accuracy metrics "
+        "below, and to decide whether a transaction updates the adaptive baseline."
+    )
+    st.markdown(
+        "**The score.** Each transaction is scored on how statistically unusual it looks, "
+        "using both a global baseline of normal transaction behavior and an EWMA model that "
+        "shifts its baseline as transactions come in. A higher score means the transaction "
+        "is more likely to be fraudulent. The slider sets the score threshold: transactions "
+        "scoring at or above the score are flagged as alerts."
+    )
+    st.markdown(
+        "**The metrics.** Precision is the percentage of flagged transactions that were "
+        "actually fraud. Recall is the percentage of fraud transactions that got flagged. "
+        "FPR (false positive rate) is the share of legitimate transactions wrongly flagged. "
+        "All three are computed based on the selected threshold. Note: the default score of "
+        "19.08 is the threshold chosen to capture most of the available recall while keeping "
+        "false positives to a fixed, low rate."
+    )
+    st.markdown("The time displayed is in the UTC zone.")
+
 threshold = st.slider(label='Score Threshold',min_value=0.0, max_value=100.0, value=19.08, step=0.5)
 
 stats = api_get('/stats', params={'threshold': threshold}).json()
-
-st.caption(
-    "Precision is the percentage of flagged transactions that were actually fraud. "
-    "Recall is the percentage of fraud transactions that got flagged. FPR(false positive rate) is the share of "
-    "legitimate transactions wrongly flagged. All three are computed based on "
-    "the selected threshold. Note: the default score of 19.08 "
-    "is the threshold chosen to capture most of the available recall while keeping false positives to a fixed, low rate. "
-)
-
-st.caption('The time displayed is in the UTC zone.')
 
 
 col1, col2, col3, col4, col5 = st.columns(5)

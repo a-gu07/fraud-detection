@@ -82,19 +82,21 @@ the same split the metrics are reported on rather than a separate held-out set.
 ## Approach
 
 **Dataset:** Kaggle "Credit Card Fraud Detection" (ULB) — ~285,000 transactions,
-~0.17% fraud. Features are `Time`, `Amount`, and PCA-anonymized `V1`-`V28`. Split
-into a historical set (baseline statistics) and a streaming set (held-out, replayed
-as if live).
+~0.17% fraud. Features are `Time`, `Amount`, and PCA-anonymized `V1`-`V28`, alongside
+a binary `Class` label marking confirmed fraud. `Class` is never used to score the
+transaction it belongs to; it is used to evaluate the detector and to control the adaptive
+layer's updates. Split into a historical set (baseline statistics) and a streaming set
+(held-out, replayed as if live).
 
 **Layer 1 — Global baseline (Mahalanobis distance).** Fit a mean vector and
 covariance matrix on non-fraud historical transactions. Score each new transaction
-by its Mahalanobis distance, D² = (x-μ)ᵀΣ⁻¹(x-μ), computed via Cholesky
+by its Mahalanobis distance, D = √((x-μ)ᵀΣ⁻¹(x-μ)), computed via Cholesky
 factorization rather than direct matrix inversion. Higher distance = more
 anomalous.
 
 **Layer 2 — Time-adaptive baseline (EWMA).** This dataset is PCA-anonymized with
 no real user/account IDs, so true per-entity baselines aren't possible. Rather
-than fabricate synthetic entities, this layer instead adapts to time-based variance, 
+than fabricate synthetic entities, this layer instead adapts to time-based drift, 
 which was empirically validated before building it: transaction volume, `Amount`, 
 fraud rate, and several `V`-feature means/variances all vary meaningfully by hour. 
 The scorer updates online via continuous-time exponential decay (`w = 1 - exp(-Δt/τ)`), 
@@ -113,19 +115,22 @@ PR-AUC ≈ 0.564 (cross-checked against scikit-learn's `roc_auc_score` and
 reference, not as part of the detector itself). A single operating threshold is
 then chosen by fixing a tolerance for false positives. At a 0.5% false-positive-rate tolerance,
 the detector achieves 81.8% recall and 22.1% precision. That precision figure is low but also 
-reasonable. With fraud representing  ~0.17% of transactions, false positives are drawn from a 
+reasonable. With fraud representing ~0.17% of transactions, false positives are drawn from a 
 pool over 500 times larger than the pool of actual fraud, so even a low false-positive *rate* 
 translates into a large false-positive *count* relative to the number of true positives found. 
 
-**Known limitation(s):** The dataset, being PCA-anonymized, does not fully reflect real-world 
-transactions. Our methods have relied on the fact that the covariance matrix is invertible.
-A real-world system would need some way to guarantee that the covariance matrix of their features is
-invertible. Additionally, the fraud-likelihood decision based on the outputted scores relies on knowing 
-which transactions are fraudulent and which aren't (this is baked into the update rule), which is also 
-not something real-world data provides. The reported evaluation metrics were also computed, and the
-detection threshold selected, using the same streaming set rather than a separate held-out split
-reserved purely for threshold tuning, so the recall/precision figures above are likely somewhat
-optimistic relative to how the detector would perform on genuinely unseen data.
+**Known limitations:**
+
+- **The dataset is PCA-anonymized**, so it does not fully reflect real-world transactions.
+- **The methods assume an invertible covariance matrix.** A real-world system would need
+  some way to guarantee that its own features produce one.
+- **The update rule depends on labels.** Whether a transaction updates the adaptive
+  baseline is decided by its known fraud label, which real-world data does not provide
+  up front.
+- **The metrics and the threshold share a split.** Both were computed on the same
+  streaming set rather than reserving a separate held-out split for threshold tuning, so
+  the recall and precision figures above are likely somewhat optimistic relative to how
+  the detector would perform on genuinely unseen data.
 
 ## Setup
 
@@ -156,6 +161,14 @@ without it `curl` saves the redirect page instead of the file.
 `streaming.csv` (~85K rows) is the held-out split that gets replayed. The deployed
 service pulls these same two files at build time.
 
+The dashboard reads its API URL from Streamlit secrets, which are gitignored. Create
+the file before running the dashboard locally, or it will fail to start:
+
+```bash
+mkdir -p .streamlit
+printf 'API_URL = "http://127.0.0.1:8000"\n' > .streamlit/secrets.toml
+```
+
 ## Streaming replay
 
 The streaming set is replayed one transaction at a time, 
@@ -169,9 +182,9 @@ Each stored row also carries the actual wall-clock time it was processed, since 
 dataset's own `Time` field only encodes elapsed seconds within the original two-day
 capture window and isn't a meaningful real timestamp on its own.
 
-Each run of the replay script clears and recreates the underlying table, so it can
-be safely re-run from a clean slate at any time. In the deployed worker this runs on a 
-continuous loop, so the live demo always shows a stream in progress.
+The replay script clears and recreates the underlying table at the start of each pass, 
+then loops continuously, so the live demo always shows a stream in progress rather than 
+a finished dataset. Stop it with Ctrl-C; each restart begins again from a clean slate.
 
 ```
 python -m scripts.sim
@@ -190,14 +203,16 @@ locking each other out) or Postgres in production, selected the same way via
 `DATABASE_URL` — and the dashboard never touches the database directly, it
 only talks to the API, the same way any external client would.
 
-The API exposes five endpoints: a health check that verifies both the service
-and the database are reachable; a listing of recent transactions; a
-listing filtered to only transactions at or above a given score threshold; a
-stats endpoint that computes precision, recall, and false-positive rate live
-for whatever threshold is requested, using the true labels already stored
-alongside each score; and an endpoint to submit a single transaction for
-on-demand scoring, useful for demonstrating the live-scoring path independent
-of a full replay run.
+The API exposes five data endpoints:
+
+- `GET /health` — verifies that both the service and the database are reachable.
+- `GET /transactions` — recent scored transactions, or a cursor-paged walk forward from a
+  given row.
+- `GET /alerts` — only transactions at or above a given score threshold.
+- `GET /stats` — precision, recall, and false-positive rate computed live for whatever
+  threshold is requested, using the true labels stored alongside each score.
+- `POST /transactions` — submits a single transaction for on-demand scoring, useful for
+  demonstrating the live-scoring path independent of a full replay run.
 
 The dashboard polls the API on a short interval to stay current, and lets a
 viewer adjust the detection threshold with a slider. The stat cards, the
@@ -209,9 +224,9 @@ chart's history consistently, not just newly-arriving data.
 
 The dashboard is explicitly a simulation: transactions are replayed from the
 same pre-downloaded and labeled dataset described above rather than
-arriving from a real payment system. While the true fraud label for each 
-transaction is known ahead of time, the labels are used only to compute 
-the accuracy metrics shown, never as an input to the scoring itself.
+arriving from a real payment system. A transaction is never scored using its own label. 
+Labels are used to compute the accuracy metrics shown, and to decide
+whether a transaction updates the adaptive baseline (see Known limitations).
 
 ```
 fastapi dev app/main.py
@@ -230,6 +245,7 @@ scripts/        streaming replay script (scores + persists transactions live)
 notebooks/      exploratory analysis + validation notebooks
 tests/          pytest suite for app/scoring.py
 data/           dataset splits and the streaming database (gitignored)
+assets/         demo GIF embedded in this README
 ```
 
 ## Running tests
