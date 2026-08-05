@@ -5,7 +5,7 @@ hand-implemented statistical methods.
 
 **[▶ Live dashboard](https://fraud-detection-agu.streamlit.app/)** · [API](https://fraud-detection-5awj.onrender.com) · [API docs](https://fraud-detection-5awj.onrender.com/docs)
 
-*The API is hosted on a free-tier web service, so the first load after a period of inactivity may take up to a minute.*
+*The API is hosted on a free-tier web service, so the first load after a period of inactivity may take 1 to 2 minutes.*
 
 ![Live dashboard demo](assets/demo.gif)
 
